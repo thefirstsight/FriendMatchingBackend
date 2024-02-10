@@ -8,7 +8,7 @@ import lombok.Data;
 
 /**
  * 用户表
- * @TableName user1
+ * @TableName user
  */
 @TableName(value ="user")
 @Data
@@ -69,6 +69,10 @@ public class User implements Serializable {
      */
     private String tags;
 
+    /**
+     * 个人简介
+     */
+    private String profile;
     /**
      * 创建时间
      */

@@ -172,6 +172,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         safetyUser.setCreateTime(orignUser.getCreateTime());
         safetyUser.setPlanetCode(orignUser.getPlanetCode());
         safetyUser.setTags(orignUser.getTags());
+        safetyUser.setProfile(orignUser.getProfile());
         return safetyUser;
     }
 
@@ -194,7 +195,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
      * @return
      */
     @Override
-    public List<User> searchUsersByTags(List<String> tagNameList) {
+    public List<User>searchUsersByTags(List<String> tagNameList) {
         //判断参数是否传入错误
         if (CollectionUtils.isEmpty(tagNameList)) {
             throw new BusinessException(ErrorCode.PARAM_ERROR);

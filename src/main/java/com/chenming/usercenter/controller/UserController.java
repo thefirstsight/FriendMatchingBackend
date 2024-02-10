@@ -11,11 +11,13 @@ import com.chenming.usercenter.model.domain.request.UserLoginRequest;
 import com.chenming.usercenter.model.domain.request.UserRegisterRequest;
 import com.chenming.usercenter.service.UserService;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,6 +32,7 @@ import static com.chenming.usercenter.constant.userConstant.USER_LOGIN_STATE;
  */
 @RestController
 @RequestMapping("/user")
+@CrossOrigin(origins = "http://localhost:4000")
 public class UserController {
     @Resource
     private UserService userService;
@@ -120,6 +123,15 @@ public class UserController {
         }
         boolean b = userService.removeById(id);
         return ResultUtils.success(b);
+    }
+
+    @GetMapping("/search/tags")
+    public BaseResponse<List<User>> searchUsersByTags(@RequestParam(required = false) List<String> tagNameList){
+        if(CollectionUtils.isEmpty(tagNameList)){
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        List<User> userList = userService.searchUsersByTags(tagNameList);
+        return ResultUtils.success(userList);
     }
 
     private boolean isAdmin(HttpServletRequest request) {
