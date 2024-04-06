@@ -1,6 +1,7 @@
 package com.chenming.usercenter.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.chenming.usercenter.common.BaseResponse;
 import com.chenming.usercenter.common.ErrorCode;
 import com.chenming.usercenter.common.ResultUtils;
@@ -10,7 +11,11 @@ import com.chenming.usercenter.model.domain.User;
 import com.chenming.usercenter.model.domain.request.UserLoginRequest;
 import com.chenming.usercenter.model.domain.request.UserRegisterRequest;
 import com.chenming.usercenter.service.UserService;
+import io.netty.handler.codec.serialization.ObjectEncoder;
+import lombok.val;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,7 +24,9 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.chenming.usercenter.constant.userConstant.ADMIN_ROLE;
 import static com.chenming.usercenter.constant.userConstant.USER_LOGIN_STATE;
@@ -32,10 +39,13 @@ import static com.chenming.usercenter.constant.userConstant.USER_LOGIN_STATE;
  */
 @RestController
 @RequestMapping("/user")
-@CrossOrigin(origins = "http://localhost:4000")
+@CrossOrigin(origins = "http://localhost:4000", allowCredentials = "true")
+@Slf4j
 public class UserController {
     @Resource
     private UserService userService;
+    @Resource
+    private RedisTemplate redisTemplate;
 
     @PostMapping("/register")
     public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
@@ -131,7 +141,61 @@ public class UserController {
             throw new BusinessException(ErrorCode.PARAM_ERROR);
         }
         List<User> userList = userService.searchUsersByTags(tagNameList);
-        return ResultUtils.success(userList);
+          return ResultUtils.success(userList);
+    }
+
+    @PostMapping("/update")
+    public BaseResponse<Integer> updateUser(@RequestBody User user, HttpServletRequest request){
+        //校验参数是否为空
+        if(user == null){
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        User loginUser = userService.getCurrentUser(request);
+        int result = userService.updateUser(user, loginUser);
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 推荐页面
+     * 数据太多需要分页
+     * @param request
+     * @return
+     */
+    @Deprecated
+    @GetMapping("/recommendAll")
+    public BaseResponse<List<User>> recommendUsersOnce(HttpServletRequest request){
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        List<User> userList = userService.list(queryWrapper);
+        List<User> list = userList.stream().map(user -> userService.getSafetyUser(user)).collect(Collectors.toList());
+        return ResultUtils.success(list);
+    }
+
+    /**
+     * 推荐页面
+     * @param pageSize
+     * @param pageNum
+     * @param request
+     * @return
+     */
+    @GetMapping("/recommend")
+    public BaseResponse<Page<User>> recommendUsers(long pageSize, long pageNum,HttpServletRequest request){
+        User currentUser = userService.getCurrentUser(request);
+        String redisKey = String.format("yupao:user:recommend:%s", currentUser.getId());
+        ValueOperations<String, Object> valueOperations = redisTemplate.opsForValue();
+        //如果有缓存，直接读缓存
+        Page<User> userPage = (Page<User>)valueOperations.get(redisKey);
+        if(userPage != null){
+            return ResultUtils.success(userPage);
+        }
+        //无缓存，直接查数据库
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        userPage = userService.page(new Page<>(pageNum, pageSize), queryWrapper);
+        try{
+            valueOperations.set(redisKey, userPage, 30000, TimeUnit.MILLISECONDS);
+        }catch (Exception e){
+            log.error("redis set key error", e);
+        }
+        return ResultUtils.success(userPage);
     }
 
     private boolean isAdmin(HttpServletRequest request) {

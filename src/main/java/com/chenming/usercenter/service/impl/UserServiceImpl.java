@@ -3,6 +3,7 @@ package com.chenming.usercenter.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.chenming.usercenter.common.ErrorCode;
+import com.chenming.usercenter.constant.userConstant;
 import com.chenming.usercenter.exception.BusinessException;
 import com.chenming.usercenter.model.domain.User;
 import com.chenming.usercenter.service.UserService;
@@ -22,6 +23,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static com.chenming.usercenter.constant.userConstant.ADMIN_ROLE;
 import static com.chenming.usercenter.constant.userConstant.USER_LOGIN_STATE;
 
 /**
@@ -220,6 +222,49 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             }
             return true;
         }).map(this::getSafetyUser).collect(Collectors.toList());
+    }
+
+    @Override
+    public boolean isAdmin(HttpServletRequest request) {
+        User user = (User) request.getSession().getAttribute(USER_LOGIN_STATE);
+        if(user == null || user.getUserRole() != userConstant.ADMIN_ROLE){
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean isAdmin(User loginUser) {
+        return loginUser.getUserRole() == ADMIN_ROLE;
+    }
+
+    @Override
+    public User getCurrentUser(HttpServletRequest request) {
+        if(request == null){
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        User user = (User) request.getSession().getAttribute(USER_LOGIN_STATE);
+        if(user == null){
+            throw new BusinessException(ErrorCode.NOT_LOGIN);
+        }
+        return user;
+    }
+
+    @Override
+    public int updateUser(User user, User loginUser) {
+        Long userId = user.getId();
+        if(userId <= 0){
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        //校验权限 管理员可以更新任意信息 用户只能更新自己的信息
+        if(!isAdmin(loginUser) && userId != loginUser.getId()){
+            throw new BusinessException(ErrorCode.NO_AUTH);
+        }
+        User oldUser = this.getById(user.getId());
+        if(oldUser == null){
+            throw new BusinessException(ErrorCode.NULL_ERROR);
+        }
+        return this.baseMapper.updateById(user); //方法返回更新操作影响的记录数
     }
 
     /**

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 /**
  * 捕获BusinessException异常
  */
+//标识全局异常处理器
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
