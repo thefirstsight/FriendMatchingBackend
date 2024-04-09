@@ -6,6 +6,8 @@ import com.chenming.usercenter.model.domain.User;
 import com.chenming.usercenter.service.UserService;
 import io.netty.handler.codec.serialization.ObjectEncoder;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,21 +23,36 @@ public class PreCacheJob {
     private UserService userService;
     @Resource
     private RedisTemplate<String, Object> redisTemplate;
+    @Resource
+    private RedissonClient redissonClient;
 
     private List<Long> mainUserList = Arrays.asList(1l);
 
     //每天执行，预热推荐用户
     @Scheduled(cron = "0 24 18 * * *")
-    public void doCacheRecommendUser(){
-        for (Long userId: mainUserList){
-            QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-            Page<User> userPage = userService.page(new Page<>(1, 20), queryWrapper);
-            String redisKey = String.format("yupao:user:recommend:%s", userId);
-            ValueOperations<String, Object> valueOperations = redisTemplate.opsForValue();
-            try {
-                valueOperations.set(redisKey, userPage, 30000, TimeUnit.MILLISECONDS);
-            }catch (Exception e){
-                log.error("redis set key error", e);
+    public void doCacheRecommendUser() {
+        RLock lock = redissonClient.getLock("yupao:precachejob:docache:lock");
+        try {
+            if (lock.tryLock(0, -1, TimeUnit.MILLISECONDS)) {
+                for (Long userId : mainUserList) {
+                    QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+                    Page<User> userPage = userService.page(new Page<>(1, 20), queryWrapper);
+                    String redisKey = String.format("yupao:user:recommend:%s", userId);
+                    ValueOperations<String, Object> valueOperations = redisTemplate.opsForValue();
+                    try {
+                        valueOperations.set(redisKey, userPage, 30000, TimeUnit.MILLISECONDS);
+                    } catch (Exception e) {
+                        log.error("redis set key error", e);
+                    }
+                }
+            }
+        } catch (InterruptedException e) {
+            log.error("doCacheRecommendUser error", e);
+        }finally{
+            //释放自己的锁
+            if(lock.isHeldByCurrentThread()){
+                System.out.println("unlock: " + Thread.currentThread().getId());
+                lock.unlock();
             }
         }
     }
