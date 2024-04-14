@@ -14,14 +14,22 @@ import org.springframework.context.annotation.Configuration;
 public class RedissionConfig {
     private String host;
     private String port;
+    private String password; // 添加密码属性
 
     @Bean
-    public RedissonClient redisssonClient(){
-        //创建配置
+    public RedissonClient redissonClient(){
+        //1、创建配置
         Config config = new Config();
         String redisAddress = String.format("redis://%s:%s", host, port);
         config.useSingleServer().setAddress(redisAddress).setDatabase(3);
-        //创建实例
-        return Redisson.create(config);
+
+        // 如果设置了密码，需要配置密码
+        if (password != null && !password.isEmpty()) {
+            config.useSingleServer().setPassword(password);
+        }
+
+        //2.创建实例
+        RedissonClient redisson = Redisson.create(config);
+        return redisson;
     }
 }
