@@ -9,11 +9,11 @@ import com.chenming.usercenter.exception.BusinessException;
 import com.chenming.usercenter.model.domain.Team;
 import com.chenming.usercenter.model.domain.User;
 import com.chenming.usercenter.model.dto.TeamQuery;
-import com.chenming.usercenter.model.request.TeamAddRequest;
-import com.chenming.usercenter.model.request.UserLoginRequest;
-import com.chenming.usercenter.model.request.UserRegisterRequest;
+import com.chenming.usercenter.model.request.*;
+import com.chenming.usercenter.model.vo.TeamUserVO;
 import com.chenming.usercenter.service.TeamService;
 import com.chenming.usercenter.service.UserService;
+import com.sun.org.apache.xpath.internal.operations.Bool;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
@@ -74,6 +74,20 @@ public class TeamController {
     }
 
     @PostMapping("/update")
+    public BaseResponse<Boolean> updateTeam(@RequestBody TeamUpdateRequest teamUpdateRequest, HttpServletRequest request){
+        if(teamUpdateRequest == null){
+            throw new BusinessException(ErrorCode.NULL_ERROR);
+        }
+        User loginUser = userService.getCurrentUser(request);
+        boolean result = teamService.updateTeam(teamUpdateRequest, loginUser);
+        if(!result){
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新失败");
+        }
+        return ResultUtils.success(result);
+    }
+
+    @Deprecated
+    @PostMapping("/update")
     public BaseResponse<Boolean> updateTeam(@RequestBody Team team) {
         if (team == null) {
             throw new BusinessException(ErrorCode.NULL_ERROR);
@@ -83,6 +97,16 @@ public class TeamController {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新失败");
         }
         return ResultUtils.success(true);
+    }
+
+    @PostMapping("/join")
+    public BaseResponse<Boolean> joinTeam(@RequestBody TeamJoinRequest teamJoinRequest, HttpServletRequest request){
+        if(teamJoinRequest == null){
+            throw new BusinessException(ErrorCode.NULL_ERROR);
+        }
+        User loginUser = userService.getCurrentUser(request);
+        boolean result = teamService.joinTeam(teamJoinRequest, loginUser);
+        return ResultUtils.success(result);
     }
 
     @GetMapping("/get")
@@ -99,14 +123,12 @@ public class TeamController {
 
     //请求体中未包含数据，不需要@requestbody
     @GetMapping("/list")
-    public BaseResponse<List<Team>> listTeams(TeamQuery teamQuery){
+    public BaseResponse<List<TeamUserVO>> listTeams(TeamQuery teamQuery, HttpServletRequest httpServletRequest){
         if(teamQuery == null){
             throw new BusinessException(ErrorCode.NULL_ERROR);
         }
-        Team team = new Team();
-        BeanUtils.copyProperties(teamQuery, team);
-        QueryWrapper<Team> queryWrapper = new QueryWrapper<>(team);     //根据team里设置的字段进行crud
-        List<Team> teamList = teamService.list(queryWrapper);
+        boolean isAdmin = userService.isAdmin(httpServletRequest);
+        List<TeamUserVO> teamList = teamService.listTeams(teamQuery, isAdmin);
         return ResultUtils.success(teamList);
     }
 
